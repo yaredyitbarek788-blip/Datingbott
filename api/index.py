@@ -5,6 +5,7 @@ import os
 import json
 import asyncio
 import logging
+import threading
 from http.server import BaseHTTPRequestHandler
 from telegram import Update, Bot
 from api.bot_logic import dispatch_update
@@ -21,6 +22,26 @@ def get_bot():
         _bot = Bot(token=BOT_TOKEN)
     return _bot
 
+def run_async(coro):
+    """Run async coroutine in a separate thread to avoid event loop conflicts"""
+    result = None
+    exception = None
+    
+    def thread_target():
+        nonlocal result, exception
+        try:
+            result = asyncio.run(coro)
+        except Exception as e:
+            exception = e
+    
+    t = threading.Thread(target=thread_target)
+    t.start()
+    t.join()
+    
+    if exception:
+        raise exception
+    return result
+
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
@@ -30,12 +51,7 @@ class handler(BaseHTTPRequestHandler):
             update_dict = json.loads(post_data.decode('utf-8'))
             
             update = Update.de_json(update_dict, bot)
-            
-            # Fix: Create fresh event loop for serverless
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(dispatch_update(update, bot))
-            loop.close()
+            run_async(dispatch_update(update, bot))
             
             self.send_response(200)
             self.send_header("Content-type", "application/json")
