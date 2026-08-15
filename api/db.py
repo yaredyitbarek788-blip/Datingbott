@@ -18,15 +18,15 @@ def get_supabase():
     return _supabase
 
 # ===== USERS =====
-async def is_user_registered(user_id: int) -> bool:
-    sb = get_supabase()
-    res = sb.table("users").select("user_id").eq("user_id", user_id).execute()
-    return len(res.data) > 0
-
 async def get_user(user_id: int):
     sb = get_supabase()
     res = sb.table("users").select("*").eq("user_id", user_id).execute()
     return res.data[0] if res.data else None
+
+async def is_user_registered(user_id: int):
+    sb = get_supabase()
+    res = sb.table("users").select("user_id").eq("user_id", user_id).execute()
+    return len(res.data) > 0
 
 async def create_user(user_data: dict):
     sb = get_supabase()
@@ -45,7 +45,7 @@ async def add_like(from_user: int, to_user: int):
         "created_at": datetime.now().isoformat()
     }).execute()
 
-async def check_mutual_like(from_user: int, to_user: int) -> bool:
+async def check_mutual_like(from_user: int, to_user: int):
     sb = get_supabase()
     res = sb.table("likes").select("*").eq("from_user", to_user).eq("to_user", from_user).execute()
     return len(res.data) > 0
@@ -74,7 +74,7 @@ async def get_matches(user_id: int):
     return result
 
 # ===== SEEN =====
-async def mark_profile_seen(viewer_id: int, viewed_id: int, action: str = "viewed"):
+async def mark_profile_seen(viewer_id: int, viewed_id: int, action: str = "view"):
     sb = get_supabase()
     sb.table("seen_profiles").upsert({
         "viewer_id": viewer_id, "viewed_id": viewed_id,
@@ -91,7 +91,10 @@ async def get_user_filters(user_id: int):
     sb = get_supabase()
     res = sb.table("user_filters").select("*").eq("user_id", user_id).execute()
     if not res.data:
-        sb.table("user_filters").insert({"user_id": user_id}).execute()
+        sb.table("user_filters").insert({
+            "user_id": user_id, "min_age": 18, "max_age": 100,
+            "gender_filter": "Any", "country_filter": "Any", "city_filter": "Any"
+        }).execute()
         res = sb.table("user_filters").select("*").eq("user_id", user_id).execute()
     return res.data[0]
 
@@ -118,7 +121,9 @@ async def get_user_state(user_id: int):
     sb = get_supabase()
     res = sb.table("user_states").select("*").eq("user_id", user_id).execute()
     if not res.data:
-        sb.table("user_states").insert({"user_id": user_id, "state": "", "temp_data": {}}).execute()
+        sb.table("user_states").insert({
+            "user_id": user_id, "state": "", "temp_data": {}, "updated_at": datetime.now().isoformat()
+        }).execute()
         return {"state": "", "temp_data": {}}
     return res.data[0]
 
